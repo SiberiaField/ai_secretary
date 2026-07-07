@@ -3,6 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 
 from ..messages import Message, ModelResponse
+from ..tools import ToolSet
 
 
 class Model(ABC):
@@ -17,6 +18,7 @@ class Model(ABC):
     def __call__(
         self,
         messages: list[Message],
+        tools: ToolSet,
         **kwargs,
     ) -> ModelResponse:
         """
@@ -26,6 +28,8 @@ class Model(ABC):
         ----------
         messages
             Conversation history.
+        tools
+            Set of available tools.
         **kwargs
             Provider-specific generation parameters.
 
