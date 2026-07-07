@@ -1,8 +1,7 @@
 import inspect
-import asyncio
 from typing import Any, Callable, Optional, Dict, Type, get_origin, get_args, Annotated
 
-from pydantic import BaseModel, Field, TypeAdapter, ValidationError, create_model
+from pydantic import BaseModel, Field, TypeAdapter, create_model
 from pydantic.json_schema import JsonSchemaValue
 from pydantic.fields import FieldInfo
 from typing import get_type_hints, List
@@ -11,7 +10,7 @@ from typing import get_type_hints, List
 class Tool(BaseModel):
     name: str
     description: str
-    func: Callable[..., Any]
+    func: Callable[..., str]
     parameters_json_schema: JsonSchemaValue
     is_async: bool = False
     _params_adapter: Optional[TypeAdapter] = None
@@ -22,7 +21,7 @@ class Tool(BaseModel):
     @classmethod
     def from_function(
         cls,
-        func: Callable[..., Any],
+        func: Callable[..., str],
         name: Optional[str] = None,
         description: Optional[str] = None,
     ) -> "Tool":
@@ -57,7 +56,7 @@ class Tool(BaseModel):
     @classmethod
     def _create_parameters_model_with_annotated(
         cls, 
-        func: Callable[..., Any], 
+        func: Callable[..., str], 
         params: Dict[str, inspect.Parameter]
     ) -> Optional[Type[BaseModel]]:
         """
@@ -89,7 +88,6 @@ class Tool(BaseModel):
                     description=description,
                 )
             else:
-                # Если описания нет, генерируем стандартное
                 field_info = Field(
                     default=... if is_required else default_value,
                     description=f"Parameter '{param_name}'",
@@ -139,33 +137,6 @@ class Tool(BaseModel):
         
         return typ
     
-    async def run(self, **kwargs) -> Any:
-        """Выполняет инструмент с валидацией аргументов."""
-        if self._params_adapter:
-            try:
-                validated_args = self._params_adapter.validate_python(kwargs)
-                if isinstance(validated_args, BaseModel):
-                    kwargs = validated_args.model_dump()
-                elif isinstance(validated_args, dict):
-                    kwargs = validated_args
-            except ValidationError as e:
-                raise ValueError(f"Invalid arguments for tool '{self.name}': {e}")
-        
-        if self.is_async:
-            return await self.func(**kwargs)
-        else:
-            return await asyncio.to_thread(self.func, **kwargs)
-    
-    def validate_and_parse_args(self, **kwargs) -> Dict[str, Any]:
-        """Валидирует и парсит аргументы без выполнения функции."""
-        if not self._params_adapter:
-            return kwargs
-        
-        validated = self._params_adapter.validate_python(kwargs)
-        if isinstance(validated, BaseModel):
-            return validated.model_dump()
-        return validated
-    
     def to_llm_definition(self) -> Dict:
         return {
                 "type": "function",
@@ -178,13 +149,10 @@ class Tool(BaseModel):
     
 
 class ToolSet:
-    def __init__(self, id: str, description: str, tools: List[Tool] | None):
-        self.id = id
+    def __init__(self, name: str, description: str, tools: List[Tool] | None):
+        self.name = name
         self.description = description
         self.tools = {tool.name: tool for tool in tools} if tools is not None else None
-
-    class Config:
-        arbitrary_types_allowed = True
         
     def add_tool(self, tool: Tool):
         """Добавляет инструмент в набор. Проверяет уникальность имен."""
