@@ -8,7 +8,7 @@ import torch
 
 from .base import Model
 from ..chat_formatters import ChatFormatter
-from ..tool_formaters import ToolFormatter
+from ..tool_formatters import ToolFormatter
 from ..tool_parsers import ToolParser, ToolParsingError
 from ..messages import Message, AssistantMessage, ModelResponse, Role, TokenUsage
 from ..tools import ToolSet
