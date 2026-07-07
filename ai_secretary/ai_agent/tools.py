@@ -1,7 +1,7 @@
 import inspect
-from typing import Any, Callable, Optional, Dict, Type, get_origin, get_args, Annotated
+from typing import Any, Callable, Optional, Dict, Type, get_origin, get_args, Annotated, Union
 
-from pydantic import BaseModel, Field, TypeAdapter, create_model
+from pydantic import BaseModel, Field, TypeAdapter, create_model, PrivateAttr
 from pydantic.json_schema import JsonSchemaValue
 from pydantic.fields import FieldInfo
 from typing import get_type_hints, List
@@ -13,7 +13,8 @@ class Tool(BaseModel):
     func: Callable[..., str]
     parameters_json_schema: JsonSchemaValue
     is_async: bool = False
-    _params_adapter: Optional[TypeAdapter] = None
+    
+    _params_adapter: Optional[TypeAdapter] = PrivateAttr(default=None)
 
     class Config:
         arbitrary_types_allowed = True
@@ -21,37 +22,45 @@ class Tool(BaseModel):
     @classmethod
     def from_function(
         cls,
-        func: Callable[..., str],
+        func: Optional[Callable[..., str]] = None,
+        *,
         name: Optional[str] = None,
         description: Optional[str] = None,
-    ) -> "Tool":
+    ) -> Union["Tool", Callable[[Callable[..., str]], "Tool"]]:
         """
         Создает Tool из функции с автоматической генерацией JSON Schema.
+        Может использоваться как обычный метод, так и как декоратор.
         """
-        tool_name = name or func.__name__
-        tool_description = description or (func.__doc__ or "No description provided.").strip().split('\n')[0]
-        is_async = inspect.iscoroutinefunction(func)
+        def decorator(f: Callable[..., str]) -> "Tool":
+            tool_name = name or f.__name__
+            tool_description = description or (f.__doc__ or "No description provided.").strip().split('\n')[0]
+            is_async = inspect.iscoroutinefunction(f)
+            
+            sig = inspect.signature(f)
+            params = sig.parameters
+            
+            params_model = cls._create_parameters_model_with_annotated(f, params)
+            
+            if params_model:
+                adapter = TypeAdapter(params_model)
+                parameters_schema = adapter.json_schema()
+            else:
+                parameters_schema = {"type": "object", "properties": {}, "required": []}
+                adapter = None
+            
+            return cls(
+                name=tool_name,
+                description=tool_description,
+                func=f,
+                parameters_json_schema=parameters_schema,
+                is_async=is_async,
+                _params_adapter=adapter,
+            )
+
+        if func is not None:
+            return decorator(func)
         
-        sig = inspect.signature(func)
-        params = sig.parameters
-        
-        params_model = cls._create_parameters_model_with_annotated(func, params)
-        
-        if params_model:
-            adapter = TypeAdapter(params_model)
-            parameters_schema = adapter.json_schema()
-        else:
-            parameters_schema = {"type": "object", "properties": {}, "required": []}
-            adapter = None
-        
-        return cls(
-            name=tool_name,
-            description=tool_description,
-            func=func,
-            parameters_json_schema=parameters_schema,
-            is_async=is_async,
-            _params_adapter=adapter,
-        )
+        return decorator
     
     @classmethod
     def _create_parameters_model_with_annotated(
