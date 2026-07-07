@@ -3,7 +3,7 @@ from ..memory import ChatMemory
 from ..messages import Message, ModelResponse
 
 
-class AIAgent(ABC):
+class Harness(ABC):
     def __init__(self, memory: ChatMemory):
         self.memory = memory
 

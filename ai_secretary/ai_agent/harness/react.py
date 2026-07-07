@@ -4,7 +4,7 @@ import asyncio
 
 logger = logging.getLogger(__name__)
 
-from .base import AIAgent
+from .base import Harness
 from ..models import Model
 from ..messages import Message, ModelResponse, ToolMessage, ToolCall, Role
 from ..tools import ToolSet
@@ -12,7 +12,7 @@ from ..memory import ChatMemory
 from ..locale import AgentLocale
 
 
-class ReActAgent(AIAgent):
+class ReActHarness(Harness):
     def __init__(
         self,
         name: str,
@@ -34,8 +34,8 @@ class ReActAgent(AIAgent):
         
         logger.info(f"[{self.name}] Agent initialized with {len(self.tools)} tools.")
 
-    async def run(self, user_message: Message) -> ModelResponse:
-        self.memory.add(user_message)
+    async def run(self, message: Message) -> ModelResponse:
+        self.memory.add(message)
         
         iterations = 0
         while iterations < self.max_iterations:
