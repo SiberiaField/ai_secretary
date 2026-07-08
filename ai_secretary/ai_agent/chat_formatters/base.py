@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from ..messages import Message
+from ai_agent.messages import Message
 
 
 class ChatFormatter(ABC):

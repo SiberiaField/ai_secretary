@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from .base import ChatFormatter
-from ..messages import Message, Role
+from ai_agent.chat_formatters.base import ChatFormatter
+from ai_agent.messages import Message, Role
 
 
 class ReActFormatter(ChatFormatter):

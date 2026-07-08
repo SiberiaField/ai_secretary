@@ -3,8 +3,8 @@ from __future__ import annotations
 import json
 from typing import List
 
-from .base import ToolParser, ToolParsingError
-from ..messages import ToolCall
+from ai_agent.tool_parsers.base import ToolParser, ToolParsingError
+from ai_agent.messages import ToolCall
 
 
 class GigaChatParser(ToolParser):

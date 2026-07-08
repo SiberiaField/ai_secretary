@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from ..tools import ToolSet
+from ai_agent.tools import ToolSet
 
 
 class ToolFormatter(ABC):

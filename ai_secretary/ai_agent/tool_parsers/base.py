@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import List, Optional
 from abc import ABC, abstractmethod
 
-from ..messages import ToolCall
+from ai_agent.messages import ToolCall
 
 
 class ToolParsingError(Exception):

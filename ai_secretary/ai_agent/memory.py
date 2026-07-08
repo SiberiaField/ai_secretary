@@ -1,5 +1,5 @@
 from typing import List, Optional
-from .messages import Message, Role
+from ai_agent.messages import Message, Role
 
 
 class ChatMemory:

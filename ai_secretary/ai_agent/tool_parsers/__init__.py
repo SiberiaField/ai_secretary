@@ -1,5 +1,5 @@
-from .base import ToolParser, ToolParsingError
-from .gigachat import GigaChatParser
+from ai_agent.tool_parsers.base import ToolParser, ToolParsingError
+from ai_agent.tool_parsers.gigachat import GigaChatParser
 
 __all__ = [
     "ToolParser",
