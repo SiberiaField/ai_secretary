@@ -3,40 +3,70 @@ from __future__ import annotations
 import json
 from typing import Optional, Any
 
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer, PretrainedConfig, GenerationConfig
 import torch
 
-from .base import Model
-from ..chat_formatters import ChatFormatter
-from ..tool_formatters import ToolFormatter
-from ..tool_parsers import ToolParser, ToolParsingError
-from ..messages import Message, AssistantMessage, ModelResponse, Role, TokenUsage
-from ..tools import ToolSet
+from ai_agent.models.base import Model
+from ai_agent.chat_formatters import ChatFormatter
+from ai_agent.tool_formatters import ToolFormatter
+from ai_agent.tool_parsers import ToolParser, ToolParsingError
+from ai_agent.messages import Message, AssistantMessage, ModelResponse, Role, TokenUsage
+from ai_agent.tools import ToolSet
+
+
+# === Фикс багов transformers с MoE-моделями ===
+_original_from_dict = PretrainedConfig.from_dict.__func__
+
+def _patched_from_dict(cls, config_dict, **kwargs):
+    if 'routed_scaling_factor' in config_dict and isinstance(config_dict['routed_scaling_factor'], int):
+        config_dict['routed_scaling_factor'] = float(config_dict['routed_scaling_factor'])
+    return _original_from_dict(cls, config_dict, **kwargs)
+
+PretrainedConfig.from_dict = classmethod(_patched_from_dict)
+# ===
 
 
 class HuggingFaceModel(Model):
     def __init__(
-            self, 
+            self,
             model_name: str,
             tool_parser: ToolParser,
             chat_formatter: Optional[ChatFormatter],
             tool_formatter: Optional[ToolFormatter],
-            **init_kwargs
+            model_kwargs: Optional[dict] = None,
+            generation_config: Optional[GenerationConfig | str] = None,
+            default_generation_kwargs: Optional[dict] = None,
         ):
-        """
-        Wrapper around HuggingFace causal language models.
-        """
+        model_kwargs = model_kwargs or {}
+        self.default_generation_kwargs = default_generation_kwargs or {}
+
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        if self.tokenizer.pad_token is None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
+
         self.model = AutoModelForCausalLM.from_pretrained(
             model_name,
-            **init_kwargs,
+            **model_kwargs,
         )
+
+        if generation_config is None:
+            try:
+                self.model.generation_config = GenerationConfig.from_pretrained(model_name)
+            except (OSError, ValueError):
+                pass
+        elif isinstance(generation_config, str):
+            self.model.generation_config = GenerationConfig.from_pretrained(generation_config)
+        elif isinstance(generation_config, GenerationConfig):
+            self.model.generation_config = generation_config
+        else:
+            raise TypeError(
+                f"generation_config must be None, str or GenerationConfig, "
+                f"got {type(generation_config)}"
+            )
+
         self.chat_formatter = chat_formatter
         self.tool_formatter = tool_formatter
         self.tool_parser = tool_parser
-
-        if self.tokenizer.pad_token is None:
-            self.tokenizer.pad_token = self.tokenizer.eos_token
 
     def _to_hf_messages(self, messages: list[Message]) -> list[dict[str, Any]]:
         """
@@ -97,12 +127,7 @@ class HuggingFaceModel(Model):
         self,
         messages: list[Message],
         tools: Optional[ToolSet] = None,
-        *,
-        max_new_tokens: int = 512,
-        do_sample: bool = True,
-        temperature: float = 0.7,
-        top_p: float = 0.95,
-        **generate_kwargs,
+        **generation_kwargs,
     ) -> ModelResponse:
         use_apply_template = self.chat_formatter is None
         
@@ -136,15 +161,11 @@ class HuggingFaceModel(Model):
             for key, value in inputs.items()
         }
 
+        merged_generation_kwargs = {**self.default_generation_kwargs, **generation_kwargs}
         with torch.no_grad():
             outputs = self.model.generate(
                 **inputs,
-                max_new_tokens=max_new_tokens,
-                do_sample=do_sample,
-                temperature=temperature,
-                top_p=top_p,
-                pad_token_id=self.tokenizer.pad_token_id,
-                **generate_kwargs,
+                **merged_generation_kwargs,
             )
 
         generated_tokens = outputs[0][inputs["input_ids"].shape[1]:]
