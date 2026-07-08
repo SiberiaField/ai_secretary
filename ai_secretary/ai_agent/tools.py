@@ -39,7 +39,7 @@ class Tool(BaseModel):
             sig = inspect.signature(f)
             params = sig.parameters
             
-            params_model = cls._create_parameters_model_with_annotated(f, params)
+            params_model = cls._create_parameters_model_with_annotated(f, params, tool_name)
             
             if params_model:
                 adapter = TypeAdapter(params_model)
@@ -66,7 +66,8 @@ class Tool(BaseModel):
     def _create_parameters_model_with_annotated(
         cls, 
         func: Callable[..., str], 
-        params: Dict[str, inspect.Parameter]
+        params: Dict[str, inspect.Parameter],
+        tool_name: str
     ) -> Optional[Type[BaseModel]]:
         """
         Создает Pydantic модель из параметров функции.
@@ -109,7 +110,7 @@ class Tool(BaseModel):
         if not fields:
             return None
         
-        model_name = f"Params_{func.__name__}_{id(params)}"
+        model_name = f"Params_{tool_name}"
         return create_model(model_name, **fields)
     
     @classmethod
