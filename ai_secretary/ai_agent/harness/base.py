@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
-from ..memory import ChatMemory
-from ..messages import Message, ModelResponse
+from ai_agent.memory import ChatMemory
+from ai_agent.messages import Message, ModelResponse
 
 
 class Harness(ABC):

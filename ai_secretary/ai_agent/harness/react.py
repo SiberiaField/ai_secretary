@@ -1,15 +1,16 @@
 import logging
 from typing import Optional
 import asyncio
+import inspect
 
 logger = logging.getLogger(__name__)
 
-from .base import Harness
-from ..models import Model
-from ..messages import Message, ModelResponse, ToolMessage, ToolCall, Role
-from ..tools import ToolSet
-from ..memory import ChatMemory
-from ..locale import AgentLocale
+from ai_agent.harness.base import Harness
+from ai_agent.models import Model
+from ai_agent.messages import Message, ModelResponse, ToolMessage, ToolCall, Role
+from ai_agent.tools import ToolSet
+from ai_agent.memory import ChatMemory
+from ai_agent.locale import AgentLocale
 
 
 class ReActHarness(Harness):
@@ -44,9 +45,13 @@ class ReActHarness(Harness):
             
             context = self.memory.get_context()
             
-            model_response = await asyncio.to_thread(self.model.__call__, context, self.tools, **self.generate_kwargs)
+            if inspect.iscoroutinefunction(self.model.__call__):
+                model_response = await self.model.__call__(context, self.tools, **self.generate_kwargs)
+            else:
+                model_response = await asyncio.to_thread(self.model.__call__, context, self.tools, **self.generate_kwargs)
             
             self.memory.add(model_response.message)
+            logger.debug(f"[{self.name}] Model answered: ### {model_response.message.content} ###")
             
             if model_response.message.tool_calls:
                 logger.info(f"[{self.name}] Model requested {len(model_response.message.tool_calls)} tool calls.")
@@ -59,6 +64,7 @@ class ReActHarness(Harness):
                     observation_message = ToolMessage(
                         role=Role.TOOL, 
                         content=tool_result,
+                        tool_name=tool_call.name,
                         tool_call_id=tool_call.id
                     )
                     self.memory.add(observation_message)
@@ -111,7 +117,7 @@ class ReActHarness(Harness):
             if tool.is_async:
                 result = await tool.func(**tool_call.arguments)
             else:
-                result = await asyncio.to_thread(tool.func(**tool_call.arguments))
+                result = await asyncio.to_thread(tool.func, **tool_call.arguments)
                 
             logger.debug(f"[{self.name}] Tool '{tool_name}' executed successfully.")
             return result

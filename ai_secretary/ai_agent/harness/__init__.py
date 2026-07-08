@@ -1,5 +1,5 @@
-from .base import Harness
-from .react import ReActHarness
+from ai_agent.harness.base import Harness
+from ai_agent.harness.react import ReActHarness
 
 __all__ = [
     "Harness",
