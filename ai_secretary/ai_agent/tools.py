@@ -172,3 +172,6 @@ class ToolSet:
     def to_llm_definition(self) -> List[Dict]:
         """Форматирует набор инструментов в список словарей для API LLM."""
         return [tool.to_llm_definition() for tool in self.tools.values()]
+    
+    def __len__(self):
+        return len(self.tools)
