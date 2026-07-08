@@ -46,13 +46,14 @@ class AssistantMessage(Message):
     Besides plain text, it may contain one or more tool calls or tool call error.
     """
 
-    tool_calls: list[ToolCall] = field(default_factory=list)
     tool_call_error: str | None
+    tool_calls: list[ToolCall] = field(default_factory=list)
 
 
 @dataclass(slots=True)
 class ToolMessage(Message):
     tool_call_id: str
+    tool_name: str
 
 
 @dataclass(slots=True)
