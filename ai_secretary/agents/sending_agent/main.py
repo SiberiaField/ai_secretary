@@ -18,7 +18,7 @@ incoming_tasks_client = FileTaskManager(config.sending_agent.tasks_root_dir)
 
 @register_data_model
 class SendingTask(BaseModel):
-    students: List[str]
+    student_ids: List[str]
 
 
 jinja_env = Environment(
@@ -54,14 +54,18 @@ def send_email(recipient_email: str, subject: str, body: str, attachments: List[
 
 async def send_reminders(task_data: SendingTask) -> None:
     """Рассылает письма научным руководителям студентов из задачи."""
-    students_df: DataFrame = pd.read_excel(config.database.excel_path, sheet_name=0)
-    practice_leader_df: DataFrame = pd.read_excel(config.database.excel_path, sheet_name=1)
+    students_df: DataFrame = await asyncio.to_thread(pd.read_excel, io=config.database.excel_path, sheet_name=0)
+    students_df["id"] = students_df["id"].astype(str)
+    students_df["Руководитель практики"] = students_df["Руководитель практики"].astype(str)
 
-    for student_fio in task_data.students:
-        student = students_df[students_df["ФИО"] == student_fio].iloc[0]
-        student_id = student.get("id")
-        student_fio = student.get("ФИО")
-        supervisor_id = student.get("Руководитель практики")
+    practice_leader_df: DataFrame = await asyncio.to_thread(pd.read_excel, io=config.database.excel_path, sheet_name=1)
+    practice_leader_df["id"] = students_df["id"].astype(str)
+
+    for student_id in task_data.student_ids:
+        student = students_df[students_df["id"] == student_id]
+        print(student)
+        student_fio = student.get("ФИО").item()
+        supervisor_id = student.get("Руководитель практики").item()
 
         if not supervisor_id:
             logger.warning("Пропускаем студента id=%s (%s): не указан научный руководитель", student_id, student_fio)
@@ -76,16 +80,13 @@ async def send_reminders(task_data: SendingTask) -> None:
             continue
 
         supervisor = supervisor_rows.iloc[0]
-        supervisor_email = supervisor.get("Почта")
+        supervisor_email = supervisor.get("Почта").item()
         if not supervisor_email:
             logger.warning("У руководителя с id=%s не указана почта. Пропускаем.", supervisor_id)
             continue
 
-        context = {
-            "student": student,
-            "supervisor": supervisor.to_dict(),
-        }
-        body = render_letter("reminder.jinja2", context)
+        context = {"secretary_name": config.secretary.name}
+        body = await asyncio.to_thread(render_letter, template_name="reminder.jinja2", context=context)
         subject = f"Индивидуальные задания для студента {student_fio}"
 
         attachments: List[Path] = []
@@ -112,21 +113,25 @@ async def send_reminders(task_data: SendingTask) -> None:
 
 async def main():
     while True:
-        pending_tasks = incoming_tasks_client.get_tasks_by_status(TaskStatus.PENDING)
+        pending_tasks = await incoming_tasks_client.get_tasks_by_status(TaskStatus.PENDING)
         if pending_tasks:
+            logger.info(f"[Sending Agent] Found tasks -> process")
             for iter, pending_task in enumerate(pending_tasks):
-                incoming_tasks_client.update_task(pending_task.id, TaskStatus.IN_PROGRESS, None)
+                await incoming_tasks_client.update_task(pending_task.id, TaskStatus.IN_PROGRESS, None)
                 logger.info(f"[Sending Agent] Task {iter}/{len(pending_tasks)} started.")
 
                 task_data: SendingTask = pending_task.get_typed_data()
                 try:
                     await send_reminders(task_data)
                 except Exception as e:
+                    await incoming_tasks_client.update_task(pending_task.id, TaskStatus.FAILED, None)
                     logger.error(f"[Sending Agent] Error occured during sending reminders. Task ID: {pending_task.id}. Error: {e}", exc_info=True)
                     continue
                 
-                incoming_tasks_client.update_task(pending_task.id, TaskStatus.COMPLETED, None)
-        await asyncio.sleep(10)
+                await incoming_tasks_client.update_task(pending_task.id, TaskStatus.COMPLETED, None)
+        else:
+            logger.info(f"[Sending Agent] There are no tasks -> sleep")
+            await asyncio.sleep(10)
 
 
 if __name__ == "__main__":
