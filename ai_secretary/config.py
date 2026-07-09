@@ -20,6 +20,7 @@ class Documents(BaseModel):
 class SortingAgentConfig(BaseModel):
     model_name: str
     gigachat_auth_key: str
+    agents_msgs_dir: Path
     tasks_root_dir: Path
 
 
