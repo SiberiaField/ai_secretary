@@ -37,7 +37,7 @@ def _filter_students(students_df: pd.DataFrame, filters: dict[str, object]) -> p
 
 
 @Tool.from_function
-def create_sending_task(
+async def create_sending_task(
     faculty: Annotated[str, Field(description="Название факультета (например, 'ФИТ')")] = None,
     degree: Annotated[str, Field(description="Степень обучения: 'Бакалавриат' или 'Магистратура'")] = None,
     course: Annotated[int, Field(description="Курс обучения (от 1 до 4)", ge=1, le=4)] = None,
@@ -94,20 +94,15 @@ def create_sending_task(
             ensure_ascii=False,
         )
 
-    # Приведение к списку словарей; NaN -> None, чтобы корректно сериализовать в JSON
-    matched_students = (
-        matched_df.replace({pd.NA: None})
-        .where(matched_df.notna(), None)
-        .to_dict(orient="records")
-    )
+    student_ids = matched_df["id"].astype(str).to_list()
 
     try:
-        sender_tasks_client.create_task(data=matched_students)
+        await sender_tasks_client.create_task(task_data={"student_ids": student_ids}, data_type="SendingTask")
     except Exception as e:
         raise RuntimeError(json.dumps(
             {
                 "feedback": f"Не удалось создать задачу в TaskManager: {e}",
-                "students_count": len(matched_students),
+                "students_count": len(student_ids),
             },
             ensure_ascii=False,
         ))
@@ -115,7 +110,7 @@ def create_sending_task(
     return json.dumps(
         {
             "feedback": "Задача на рассылку успешно создана.",
-            "students_count": len(matched_students),
+            "students_count": len(student_ids),
         },
         ensure_ascii=False,
     )
