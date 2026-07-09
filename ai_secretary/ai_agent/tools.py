@@ -7,6 +7,16 @@ from pydantic.fields import FieldInfo
 from typing import get_type_hints, List
 
 
+class ToolNotFoundError(Exception):
+    def __init__(self, *args):
+        super().__init__(*args)
+
+
+class ToolExecutionError(Exception):
+    def __init__(self, *args):
+        super().__init__(*args)
+
+
 class Tool(BaseModel):
     name: str
     description: str
