@@ -54,15 +54,8 @@ python -m unittest discover -v
    ```bash
    export $(grep -v '^#' .env | xargs)
    ```
-5. Узнайте точное имя папки черновиков для вашего аккаунта:
-   ```python
-   import imapclient
-   c = imapclient.IMAPClient(host, port=993, ssl=True)
-   c.login(user, password)
-   print(c.list_folders())
-   ```
-   На Gmail это обычно `[Gmail]/Drafts` (может отличаться по локали
-   интерфейса) — поправьте `drafts_folder` в `scripts/demo_run.py`.
+
+
 
 ## Запуск на реальном аккаунте
 

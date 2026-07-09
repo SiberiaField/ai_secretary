@@ -5,14 +5,15 @@
 Запуск:
     python -m scripts.demo_run
 """
+
 from __future__ import annotations
 
 import asyncio
 import os
 
-import imapclient
-
 from mail_agent.agent import create_folder_based_agent
+from mail_agent.auth import PasswordAuth
+from mail_agent.client_factory import create_real_client
 from mail_agent.config import MailAccountConfig
 from mail_agent.models import ProcessingStatus
 
@@ -23,14 +24,15 @@ async def main() -> None:
     user = os.environ["TEST_IMAP_USER"]
     password = os.environ["TEST_IMAP_APP_PASSWORD"]
 
-    client = imapclient.IMAPClient(host, port=port, ssl=True)
-    client.login(user, password)
+    auth = PasswordAuth(username=user, password=password)
+    config = MailAccountConfig(imap_host=host, imap_port=port, drafts_folder=None)
 
-    config = MailAccountConfig(imap_host=host, drafts_folder="Черновики") # Пока работает только с пользовательской папкой - под исправление
+    client = await create_real_client(config, auth)
     agent = create_folder_based_agent(client, config, from_address=user)
 
     messages = await agent.fetch_new_messages(limit=10)
     print(f"Новых писем в INBOX: {len(messages)}")
+    print(f"Определена папка черновиков: {config.drafts_folder!r}")
 
     for msg in messages:
         print(f"- {msg.subject!r} от {msg.from_addr.address} (вложений: {len(msg.attachments)})")
@@ -45,7 +47,7 @@ async def main() -> None:
         await agent.mark_processed(msg, ProcessingStatus.PROCESSED)
         print("  письмо перемещено в папку 'Обработано'")
 
-    client.logout()
+    await asyncio.to_thread(client.logout)
 
 
 if __name__ == "__main__":

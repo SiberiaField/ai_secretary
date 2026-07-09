@@ -197,6 +197,40 @@ def build_reply_mime(
 
     return msg.as_bytes(), message_id
 
+def build_new_mime(
+    *,
+    from_address: str,
+    to_address: str,
+    subject: str,
+    body_html: str,
+    body_text: Optional[str] = None,
+    attachments: Optional[List[OutgoingAttachment]] = None,
+    extra_headers: Optional[dict[str, str]] = None,
+) -> Tuple[bytes, str]:
+    """Собирает новое (не-reply) MIME-письмо - для рассылок, где нет
+    исходного входящего сообщения, на которое нужно отвечать."""
+    msg = MimeEmailMessage(policy=policy.default)
+    msg["Subject"] = subject
+    msg["From"] = from_address
+    msg["To"] = to_address
+
+    for key, value in (extra_headers or {}).items():
+        msg[key] = value
+
+    message_id = make_msgid()
+    msg["Message-ID"] = message_id
+
+    _set_alternative_body(msg, body_html, body_text)
+
+    for att in attachments or []:
+        maintype, _, subtype = att.content_type.partition("/")
+        msg.add_attachment(
+            att.data, maintype=maintype or "application",
+            subtype=subtype or "octet-stream", filename=att.filename,
+        )
+
+    return msg.as_bytes(), message_id
+
 
 def rebuild_draft_mime(
     *,

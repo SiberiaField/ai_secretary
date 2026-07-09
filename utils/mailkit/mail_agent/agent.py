@@ -18,7 +18,7 @@ from typing import Any, Dict, List, Optional, Protocol
 
 from .config import MailAccountConfig
 from .exceptions import DraftError
-from .mime_utils import build_reply_mime, extract_attachment_bytes, parse_message, rebuild_draft_mime
+from .mime_utils import build_reply_mime, extract_attachment_bytes, parse_message, rebuild_draft_mime, build_new_mime
 from .models import DraftRef, EmailMessage, OutgoingAttachment, ProcessingStatus
 from .status_tracker import FolderStatusTracker, StatusTracker
 
@@ -57,6 +57,8 @@ class ImapMailAgent:
         self._from_address = from_address
         self._log = logger or logging.getLogger(__name__)
         self._status_tracker: Optional[StatusTracker] = None
+
+    # TASK_ID_HEADER = "X-AISecretary-Task-Id"
 
     def attach_status_tracker(self, tracker: StatusTracker) -> None:
         """StatusTracker подключается отдельным шагом (не через
@@ -135,6 +137,35 @@ class ImapMailAgent:
             body_text=body_text,
             subject=subject,
             attachments=attachments,
+        )
+        try:
+            result = await self._run(
+                self._client.append, self._config.drafts_folder, mime_bytes, flags=(r"\Draft",)
+            )
+        except Exception as exc:
+            raise DraftError(f"Не удалось сохранить черновик: {exc}") from exc
+
+        uid = self._extract_appended_uid(result)
+        return DraftRef(uid=uid, folder=self._config.drafts_folder, message_id=message_id)
+    
+    async def save_new_draft(
+        self,
+        to_address: str,
+        subject: str,
+        body_html: str,
+        body_text: Optional[str] = None,
+        attachments: Optional[List[OutgoingAttachment]] = None,
+        # task_id: Optional[str] = None,
+    ) -> DraftRef:
+        # extra_headers = {self.TASK_ID_HEADER: task_id} if task_id else None
+        mime_bytes, message_id = build_new_mime(
+            from_address=self._from_address,
+            to_address=to_address,
+            subject=subject,
+            body_html=body_html,
+            body_text=body_text,
+            attachments=attachments,
+            # extra_headers=extra_headers,
         )
         try:
             result = await self._run(
