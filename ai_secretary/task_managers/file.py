@@ -1,6 +1,7 @@
 import uuid
 import os
 import tempfile
+import asyncio
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 
@@ -39,10 +40,10 @@ class FileTaskManager(TaskManager):
                 return file_path
         return None
 
-    def _read_task(self, file_path: Path) -> Task:
+    async def _read_task(self, file_path: Path) -> Task:
         """Читает и десериализует задачу из JSON-файла."""
         with open(file_path, 'r', encoding='utf-8') as f:
-            json_str = f.read()
+            json_str = await asyncio.to_thread(f.read)
         return Task.model_validate_json(json_str)
 
     def _write_task(self, task: Task, file_path: Path) -> None:
@@ -68,7 +69,7 @@ class FileTaskManager(TaskManager):
 
     # --- Реализация абстрактных методов ---
 
-    def create_task(self, task_data: Dict[str, Any], data_type: str, initial_status: TaskStatus = TaskStatus.PENDING) -> str:
+    async def create_task(self, task_data: Dict[str, Any], data_type: str, initial_status: TaskStatus = TaskStatus.PENDING) -> str:
         task_id = str(uuid.uuid4())
         
         data_copy = task_data.copy()
@@ -81,17 +82,17 @@ class FileTaskManager(TaskManager):
         )
         
         file_path = self._get_folder_for_status(initial_status) / f"{task_id}.json"
-        self._write_task(task, file_path)
+        await asyncio.to_thread(self._write_task, task=task, file_path=file_path)
         
         return task_id
 
-    def get_task(self, task_key: str) -> Task:
-        file_path = self._find_task_file(task_key)
+    async def get_task(self, task_key: str) -> Task:
+        file_path = await asyncio.to_thread(self._find_task_file, task_key=task_key)
         
         if not file_path:
             raise TaskNotFoundError(f"Задача {task_key} не найдена")
             
-        task = self._read_task(file_path)
+        task = await self._read_task(file_path)
         
         folder_status = TaskStatus(file_path.parent.name)
         if task.status != folder_status:
@@ -99,7 +100,7 @@ class FileTaskManager(TaskManager):
             
         return task
 
-    def get_tasks_by_status(self, status: TaskStatus, limit: Optional[int] = None) -> List[Task]:
+    async def get_tasks_by_status(self, status: TaskStatus, limit: Optional[int] = None) -> List[Task]:
         folder = self._get_folder_for_status(status)
         tasks: List[Task] = []
         
@@ -114,7 +115,7 @@ class FileTaskManager(TaskManager):
             
         for file_path in json_files:
             try:
-                task = self._read_task(file_path)
+                task = await self._read_task(file_path)
                 task.status = status  # Гарантируем статус от папки
                 tasks.append(task)
             except Exception as e:
@@ -122,13 +123,13 @@ class FileTaskManager(TaskManager):
                 
         return tasks
 
-    def update_task(self, task_key: str, new_status: TaskStatus, update_fields: Dict[str, Any] | None) -> None:
-        old_file_path = self._find_task_file(task_key)
+    async def update_task(self, task_key: str, new_status: TaskStatus, update_fields: Dict[str, Any] | None) -> None:
+        old_file_path = await asyncio.to_thread(self._find_task_file, task_key=task_key)
         
         if not old_file_path:
             raise TaskNotFoundError(f"Задача {task_key} не найдена для обновления")
             
-        old_task = self._read_task(old_file_path)
+        old_task = await self._read_task(old_file_path)
         
         new_data = old_task.data.copy()
         if update_fields:
@@ -144,10 +145,10 @@ class FileTaskManager(TaskManager):
         old_file_path.unlink()
         
         new_file_path = self._get_folder_for_status(new_status) / f"{task_key}.json"
-        self._write_task(new_task, new_file_path)
+        await asyncio.to_thread(self._write_task, task=new_task, file_path=new_file_path)
 
-    def delete_task(self, task_key: str) -> None:
-        file_path = self._find_task_file(task_key)
+    async def delete_task(self, task_key: str) -> None:
+        file_path = await asyncio.to_thread(self._find_task_file, task_key=task_key)
         
         if not file_path:
             raise TaskNotFoundError(f"Задача {task_key} не найдена для удаления")
