@@ -55,10 +55,11 @@ async def main():
     harness = ReActHarness("ai_sorting_agent", model, tools=tool_set, memory=memory, locale=AgentLocale.ru())
 
     while True:
-        pending_tasks = incoming_tasks_client.get_tasks_by_status(TaskStatus.PENDING)
+        pending_tasks = await incoming_tasks_client.get_tasks_by_status(TaskStatus.PENDING)
         if pending_tasks:
+            logger.info(f"[Sorting Agent] Found tasks -> process")
             for iter, pending_task in enumerate(pending_tasks):
-                incoming_tasks_client.update_task(pending_task.id, TaskStatus.IN_PROGRESS, None)
+                await incoming_tasks_client.update_task(pending_task.id, TaskStatus.IN_PROGRESS, None)
                 logger.info(f"[Sorting Agent] Task {iter}/{len(pending_tasks)} started.")
 
                 task_data: EmailReadTask = pending_task.get_typed_data()
@@ -67,14 +68,16 @@ async def main():
                 try:
                     final_answer = await harness.run(msg)
                 except Exception as e:
-                    incoming_tasks_client.update_task(pending_task.id, TaskStatus.FAILED, None)
+                    await incoming_tasks_client.update_task(pending_task.id, TaskStatus.FAILED, None)
                     logger.error(f"[Sorting Agent] Error occured during ai-agent running. Task ID: {pending_task.id}. Error: {e}", exc_info=True)
                     memory.clear()
                     continue
                 
-                incoming_tasks_client.update_task(pending_task.id, TaskStatus.COMPLETED, None)
+                await incoming_tasks_client.update_task(pending_task.id, TaskStatus.COMPLETED, None)
                 memory.clear()
-        await asyncio.sleep(10)
+        else:
+            logger.info(f"[Sorting Agent] There are no tasks -> sleep")
+            await asyncio.sleep(10)
 
 
 if __name__ == "__main__":
