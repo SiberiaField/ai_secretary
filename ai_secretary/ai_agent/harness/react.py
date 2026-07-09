@@ -2,13 +2,14 @@ import logging
 from typing import Optional
 import asyncio
 import inspect
+import json
 
 logger = logging.getLogger(__name__)
 
 from ai_agent.harness.base import Harness
 from ai_agent.models import Model
 from ai_agent.messages import Message, ModelResponse, ToolMessage, ToolCall, Role
-from ai_agent.tools import ToolSet
+from ai_agent.tools import ToolSet, ToolNotFoundError, ToolExecutionError
 from ai_agent.memory import ChatMemory
 from ai_agent.locale import AgentLocale
 
@@ -41,7 +42,7 @@ class ReActHarness(Harness):
         iterations = 0
         while iterations < self.max_iterations:
             iterations += 1
-            logger.debug(f"[{self.name}] Starting iteration {iterations}/{self.max_iterations}")
+            logger.info(f"[{self.name}] Starting iteration {iterations}/{self.max_iterations}")
             
             context = self.memory.get_context()
             
@@ -51,15 +52,34 @@ class ReActHarness(Harness):
                 model_response = await asyncio.to_thread(self.model.__call__, context, self.tools, **self.generate_kwargs)
             
             self.memory.add(model_response.message)
-            logger.debug(f"[{self.name}] Model answered: ### {model_response.message.content} ###")
+            logger.info(f"[{self.name}] Model answered: ### {model_response.message.content} ###")
             
             if model_response.message.tool_calls:
                 logger.info(f"[{self.name}] Model requested {len(model_response.message.tool_calls)} tool calls.")
                 
                 for tool_call in model_response.message.tool_calls:
-                    logger.debug(f"[{self.name}] Executing tool: {tool_call.name} with args: {tool_call.arguments}")
+                    logger.info(f"[{self.name}] Executing tool: {tool_call.name} with args: {tool_call.arguments}")
                     
-                    tool_result = await self._execute_tool(tool_call)
+                    try:
+                        tool_result = await self._execute_tool(tool_call)
+                    except ToolNotFoundError as e:
+                        error_observation = ToolMessage(
+                            role=Role.TOOL,
+                            content=json.dumps({"error": str(e)}),
+                            tool_name=tool_call.name,
+                            tool_call_id=tool_call.id
+                        )
+                        self.memory.add(error_observation)
+                        continue
+                    except ToolExecutionError as e:
+                        error_observation = ToolMessage(
+                            role=Role.TOOL,
+                            content=str(e),
+                            tool_name=tool_call.name,
+                            tool_call_id=tool_call.id
+                        )
+                        self.memory.add(error_observation)
+                        continue
                     
                     observation_message = ToolMessage(
                         role=Role.TOOL, 
@@ -84,11 +104,10 @@ class ReActHarness(Harness):
                 error_observation = ToolMessage(
                     role=Role.TOOL,
                     content=error_message,
+                    tool_name=tool_call.name,
                     tool_call_id=None
                 )
                 self.memory.add(error_observation)
-                
-                logger.info(f"[{self.name}] Error message added to memory, retrying...")
             else:
                 logger.info(f"[{self.name}] Final answer generated.")
                 return model_response
@@ -109,7 +128,7 @@ class ReActHarness(Harness):
                 available_tools=", ".join(self.tools.tools.keys())
             )
             logger.warning(f"[{self.name}] {error_text}")
-            return error_text
+            raise ToolNotFoundError(error_text)
 
         tool = self.tools.tools[tool_name]
         
@@ -119,15 +138,11 @@ class ReActHarness(Harness):
             else:
                 result = await asyncio.to_thread(tool.func, **tool_call.arguments)
                 
-            logger.debug(f"[{self.name}] Tool '{tool_name}' executed successfully.")
+            logger.info(f"[{self.name}] Tool '{tool_name}' executed successfully. Result = {result}")
             return result
         except Exception as e:
             logger.error(
                 f"[{self.name}] Failed while executing tool '{tool_name}': {e}", 
                 exc_info=True
             )
-            
-            return self.locale.tool_execution_error.format(
-                tool_name=tool_name, 
-                error=str(e)
-            )
+            raise ToolExecutionError(str(e))
