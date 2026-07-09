@@ -13,10 +13,11 @@ import asyncio
 from .auth import AuthStrategy
 from .config import MailAccountConfig
 from .exceptions import AuthenticationError, MailConnectionError
+from .special_use import resolve_special_folder
 
 
 async def create_real_client(config: MailAccountConfig, auth: AuthStrategy):
-    import imapclient  # локальный импорт, см. docstring модуля
+    import imapclient 
 
     secret = await auth.get_secret()
 
@@ -37,5 +38,18 @@ async def create_real_client(config: MailAccountConfig, auth: AuthStrategy):
             raise AuthenticationError(str(exc)) from exc
 
         return client
+    
+    client = await asyncio.to_thread(_connect)
 
-    return await asyncio.to_thread(_connect)
+    if config.drafts_folder is None:
+        resolved = await asyncio.to_thread(resolve_special_folder, client, b"\\Drafts")
+        if resolved is None:
+            raise MailConnectionError(
+                "Не удалось автоматически определить папку черновиков "
+                "(сервер не вернул флаг \\Drafts). Укажите drafts_folder "
+                "в MailAccountConfig вручную — запустите scripts/list_folders.py, "
+                "чтобы увидеть точные имена и флаги папок."
+            )
+        config.drafts_folder = resolved
+
+    return client

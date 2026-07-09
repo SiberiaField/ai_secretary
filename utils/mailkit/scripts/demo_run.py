@@ -26,7 +26,7 @@ async def main() -> None:
     client = imapclient.IMAPClient(host, port=port, ssl=True)
     client.login(user, password)
 
-    config = MailAccountConfig(imap_host=host, drafts_folder="Черновики") # Пока работает только с пользовательской папкой - под исправление
+    config = MailAccountConfig(imap_host=host, drafts_folder=None) # Пока работает только с пользовательской папкой - под исправление
     agent = create_folder_based_agent(client, config, from_address=user)
 
     messages = await agent.fetch_new_messages(limit=10)

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict
+from typing import Dict, Optional
 
 from .models import ProcessingStatus
 
@@ -13,7 +13,7 @@ class MailAccountConfig:
 
     inbox_folder: str = "INBOX"
 
-    drafts_folder: str = "Черновики"
+    drafts_folder: Optional[str] = None
 
     folder_map: Dict[ProcessingStatus, str] = field(
         default_factory=lambda: {
