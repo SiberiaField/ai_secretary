@@ -1,11 +1,10 @@
-import json
 import uuid
 import os
 import tempfile
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 
-from ai_secretary.task_managers.base import Task, TaskManager, TaskStatus, TaskNotFoundError
+from task_managers.base import Task, TaskManager, TaskStatus, TaskNotFoundError
 
 
 class FileTaskManager(TaskManager):
@@ -73,7 +72,6 @@ class FileTaskManager(TaskManager):
         task_id = str(uuid.uuid4())
         
         data_copy = task_data.copy()
-        data_type = data_copy.pop('data_type', 'BaseModel')
         
         task = Task(
             id=task_id,
@@ -124,7 +122,7 @@ class FileTaskManager(TaskManager):
                 
         return tasks
 
-    def update_task(self, task_key: str, new_status: TaskStatus, update_fields: Dict[str, Any]) -> None:
+    def update_task(self, task_key: str, new_status: TaskStatus, update_fields: Dict[str, Any] | None) -> None:
         old_file_path = self._find_task_file(task_key)
         
         if not old_file_path:
@@ -133,7 +131,8 @@ class FileTaskManager(TaskManager):
         old_task = self._read_task(old_file_path)
         
         new_data = old_task.data.copy()
-        new_data.update(update_fields)
+        if update_fields:
+            new_data.update(update_fields)
         
         new_task = Task(
             id=old_task.id,
