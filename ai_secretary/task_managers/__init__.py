@@ -1,4 +1,4 @@
-from ai_secretary.task_managers.base import (
+from task_managers.base import (
     TaskManager, 
     TaskManagerError, 
     TaskNotFoundError,
@@ -6,8 +6,8 @@ from ai_secretary.task_managers.base import (
     Task,
     register_data_model
 )
-from ai_secretary.task_managers.imap import IMAPTaskManager
-from ai_secretary.task_managers.file import FileTaskManager
+from task_managers.imap import IMAPTaskManager
+from task_managers.file import FileTaskManager
 
 
 __all__ = [
