@@ -5,7 +5,7 @@ from email.header import Header
 import uuid
 from typing import Dict, Any, List, Optional
 
-from ai_secretary.task_managers.base import Task, TaskManager, TaskStatus, TaskNotFoundError
+from task_managers.base import Task, TaskManager, TaskStatus, TaskNotFoundError
 
 
 class IMAPTaskManager(TaskManager):
