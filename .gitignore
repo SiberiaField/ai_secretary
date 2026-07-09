@@ -5,3 +5,4 @@
 
 # папки с тестовыми задачами для агентов
 *test_tasks/
+ai_secretary/agents/sorting_agent/agent_msgs/
