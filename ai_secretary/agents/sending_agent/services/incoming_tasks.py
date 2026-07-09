@@ -9,7 +9,11 @@ from pydantic import BaseModel
 from jinja2 import Environment
 
 from task_managers import Task, TaskStatus, FileTaskManager, register_data_model
+from mail_agent import OutgoingAttachment
+from mail_connection_manager import MailConnectionManager
 from config import config
+
+mail_lock = asyncio.Lock()
 
 logger = logging.getLogger(__name__)
 
@@ -25,29 +29,43 @@ class IncomingTasksService():
             tasks: List[Task],
             jinja_env: Environment,
             incoming_tasks_manager: FileTaskManager,
-            output_dir: Path
+            output_dir: Path,
+            mail_conn: MailConnectionManager,
         ):
         self.jinja_env = jinja_env
         self.incoming_tasks_manager = incoming_tasks_manager
         self.tasks = tasks
         self.output_dir = output_dir
-    
+        self.mail_conn = mail_conn
+
     def _render_letter(self, template_name: str, context: Dict[str, Any]) -> str:
-        """Рендерит текстовый/HTML шаблон письма через Jinja2."""
         template = self.jinja_env.get_template(template_name)
         return template.render(**context)
 
     def _render_word_document(self, template_name: str, context: Dict[str, Any], output_path: Path) -> Path:
-        """Заглушка для рендеринга Word-документа. Заменить на docxtpl при необходимости."""
         logger.info("[Sending Agent] Word-документ не сгенерирован (заглушка)")
         return output_path
 
-    def _send_email(self, recipient_email: str, subject: str, body: str, attachments: List[Path] | None = None) -> None:
-        """Плейсхолдер отправки письма через IMAP/SMTP."""
-        logger.info("[Sending Agent] Отправка письма (плейсхолдер)")
+    async def _save_draft_email(self, recipient_email, subject, body, attachments=None) -> None:
+        outgoing_attachments = []
+        for path in (attachments or []):
+            if not path.exists():
+                logger.warning(f"[Sending Agent] Вложение {path} не найдено на диске, пропускаем")
+                continue
+            data = await asyncio.to_thread(path.read_bytes)
+            outgoing_attachments.append(
+                OutgoingAttachment(filename=path.name, content_type="application/octet-stream", data=data)
+            )
+
+        await self.mail_conn.call(
+            self.mail_conn.mail_agent.save_new_draft,
+            to_address=recipient_email,
+            subject=subject,
+            body_html=f"<p>{body}</p>",
+            attachments=outgoing_attachments or None,
+        )
 
     async def _send_reminders(self, task_data: SendingTask) -> None:
-        """Рассылает письма научным руководителям студентов из задачи."""
         students_df: DataFrame = await asyncio.to_thread(pd.read_excel, io=config.database.excel_path, sheet_name=0)
         students_df["id"] = students_df["id"].astype(str)
         students_df["Руководитель практики"] = students_df["Руководитель практики"].astype(str)
@@ -94,14 +112,14 @@ class IncomingTasksService():
                     attachments.append(output_path)
 
             try:
-                self._send_email(
+                await self._save_draft_email(
                     recipient_email=supervisor_email,
                     subject=subject,
                     body=body,
                     attachments=attachments,
                 )
             except Exception as e:
-                logger.exception("[Sending Agent] Ошибка при отправке письма руководителю %s: %s", supervisor_email, e)
+                logger.exception("[Sending Agent] Ошибка при сохранении черновика для руководителя %s: %s", supervisor_email, e)
 
     async def run(self):
         logger.info(f"[Sending Agent] Found tasks -> process")
@@ -116,5 +134,5 @@ class IncomingTasksService():
                 await self.incoming_tasks_manager.update_task(task.id, TaskStatus.FAILED, None)
                 logger.error(f"[Sending Agent] Error occured during sending reminders. Task ID: {task.id}. Error: {e}", exc_info=True)
                 continue
-                
+
             await self.incoming_tasks_manager.update_task(task.id, TaskStatus.COMPLETED, None)

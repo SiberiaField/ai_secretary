@@ -1,0 +1,8 @@
+Metadata-Version: 2.4
+Name: mailkit
+Version: 0.1.0
+Summary: Async IMAP mail agent module for ai_secretary
+Requires-Python: >=3.11
+Requires-Dist: imapclient>=3.0
+Provides-Extra: postgres
+Requires-Dist: asyncpg>=0.29; extra == "postgres"

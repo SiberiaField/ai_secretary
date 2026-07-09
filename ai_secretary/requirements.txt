@@ -1,3 +1,5 @@
+-e utils/mailkit
+
 jinja2>=3.1
 docxtpl>=0.20
 dotenv>=0.9
@@ -5,3 +7,5 @@ gigachat>=0.2.1
 pandas>=3.0
 pydantic>=2.13
 openpyxl>=3.1
+transformers>=4.40
+torch>=2.2
