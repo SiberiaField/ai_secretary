@@ -1,0 +1,4 @@
+imapclient>=3.0
+
+# Опционально для PostgresStatusTracker:
+# asyncpg>=0.29
