@@ -80,7 +80,7 @@ class TaskManager(ABC):
         pass
 
     @abstractmethod
-    def update_task(self, task_key: str, new_status: TaskStatus, update_fields: Dict[str, Any]) -> None:
+    def update_task(self, task_key: str, new_status: TaskStatus, update_fields: Dict[str, Any] | None) -> None:
         """
         Обновляет статус и поля существующей задачи.
         :raises TaskNotFoundError: Если задача не найдена.
