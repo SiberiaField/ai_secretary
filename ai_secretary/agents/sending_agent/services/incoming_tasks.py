@@ -105,6 +105,9 @@ class IncomingTasksService():
         practice_leader_df: DataFrame = await asyncio.to_thread(pd.read_excel, io=config.database.excel_path, sheet_name=1)
         practice_leader_df["id"] = practice_leader_df["id"].astype(str)
 
+        templates_df: DataFrame = await asyncio.to_thread(pd.read_excel, io=config.database.excel_path, sheet_name=2)
+        degree_to_template = dict(zip(templates_df["Степень"], templates_df["Имя документа"]))
+
         if task_data.report is None:
             task_data.report = ReportData()
 
@@ -125,6 +128,7 @@ class IncomingTasksService():
                 continue
 
             student_fio = student.get("ФИО").item()
+            student_degree = student.get("Степень").item()
             supervisor_id = student.get("Руководитель практики").item()
 
             # Проверка: указан научный руководитель
@@ -173,14 +177,18 @@ class IncomingTasksService():
 
             attachments: List[Path] = []
             if config.sending_agent.generate_example_doc:
-                output_path = self.output_dir / f"task_{student_id}.docx"
-                self._render_word_document(
-                    template_name="indi",
-                    context=context,
-                    output_path=output_path
-                )
-                if output_path.exists():
-                    attachments.append(output_path)
+                template_filename = degree_to_template.get(student_degree)
+                if template_filename is None:
+                    logger.warning(
+                        f"[Sending Agent] Нет шаблона для степени {student_degree!r} (студент id={student_id}), "
+                        "письмо уйдёт без вложения"
+                    )
+                else:
+                    template_path = config.documents.templates_dir / template_filename
+                    if template_path.exists():
+                        attachments.append(template_path)
+                    else:
+                        logger.warning(f"[Sending Agent] Файл шаблона не найден: {template_path}")
 
             try:
                 await self._save_draft_email(
@@ -188,9 +196,6 @@ class IncomingTasksService():
                     subject=subject,
                     body=body,
                     attachments=attachments,
-                )
-                task_data.report.students.append(
-                    StudentInfo(id=student_id, result=StudentStatus.SUCCESS)
                 )
                 task_data.report.num_of_success += 1
             except Exception as e:
