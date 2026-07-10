@@ -17,13 +17,11 @@ from config import config
 
 async def main():
     mail_conn = await build_mail_connection(config)
-    incoming_tasks_manager = FileTaskManager(config.sorting_agent.tasks_root_dir)
-    agents_msgs_manager = FileTaskManager(config.sorting_agent.agents_msgs_dir)
 
     async with asyncio.TaskGroup() as tg:
-        tg.create_task(poll_mail(mail_conn, incoming_tasks_manager))
-        tg.create_task(sorting_agent_main(mail_conn, incoming_tasks_manager, agents_msgs_manager))
-        tg.create_task(sending_agent_main(mail_conn))
+        tg.create_task(poll_mail(mail_conn, FileTaskManager(config.sorting_agent.tasks_root_dir)))
+        tg.create_task(sorting_agent_main(mail_conn, FileTaskManager(config.sorting_agent.tasks_root_dir), FileTaskManager(config.sorting_agent.agents_msgs_dir)))
+        tg.create_task(sending_agent_main(mail_conn, FileTaskManager(config.sending_agent.tasks_root_dir), FileTaskManager(config.sorting_agent.agents_msgs_dir)))
 
 
 if __name__ == "__main__":

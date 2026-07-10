@@ -26,7 +26,7 @@ def _email_message_to_task_data(msg: EmailMessage) -> dict:
 
 async def poll_mail(
     mail_conn: MailConnectionManager,
-    incoming_tasks_manager: FileTaskManager,
+    sorting_agent_tasks_manager: FileTaskManager,
     poll_interval: int = 30,
 ) -> None:
     while True:
@@ -35,7 +35,7 @@ async def poll_mail(
 
             for msg in messages:
                 task_data = _email_message_to_task_data(msg)
-                await incoming_tasks_manager.create_task(
+                await sorting_agent_tasks_manager.create_task(
                     task_data=task_data,
                     data_type="EmailReadTask",
                     initial_status=TaskStatus.PENDING,
