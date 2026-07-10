@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 incoming_tasks_manager = FileTaskManager(config.sending_agent.tasks_root_dir)
+sorting_agent_msgs_manager = FileTaskManager(config.sorting_agent.agents_msgs_dir)
 
 jinja_env = Environment(
     loader=PackageLoader(
@@ -29,7 +30,13 @@ async def main():
         pending_tasks = await incoming_tasks_manager.get_tasks_by_status(TaskStatus.PENDING, 5)
         if pending_tasks:
             try:
-                service = IncomingTasksService(pending_tasks, jinja_env, incoming_tasks_manager, output_dir)
+                service = IncomingTasksService(
+                    pending_tasks, 
+                    jinja_env, 
+                    incoming_tasks_manager, 
+                    sorting_agent_msgs_manager, 
+                    output_dir
+                )
                 await service.run()
             except Exception as e:
                 logger.error(f"[Sorting Agent] Error while runnig service for incoming tasks: {e}")
