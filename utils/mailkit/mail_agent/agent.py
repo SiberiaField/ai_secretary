@@ -60,6 +60,9 @@ class ImapMailAgent:
 
     # TASK_ID_HEADER = "X-AISecretary-Task-Id"
 
+    def replace_client(self, new_client: ImapClientLike) -> None:
+        self._client = new_client
+
     def attach_status_tracker(self, tracker: StatusTracker) -> None:
         """StatusTracker подключается отдельным шагом (не через
         конструктор), т.к. FolderStatusTracker сам зависит от агента

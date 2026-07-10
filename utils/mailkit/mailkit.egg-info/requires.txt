@@ -1,0 +1,4 @@
+imapclient>=3.0
+
+[postgres]
+asyncpg>=0.29

@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mailkit"
+version = "0.1.0"
+description = "Async IMAP mail agent module for ai_secretary"
+requires-python = ">=3.11"
+dependencies = [
+    "imapclient>=3.0",
+]
+
+[project.optional-dependencies]
+postgres = ["asyncpg>=0.29"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["mail_agent*"]
+exclude = ["tests*", "scripts*"]
