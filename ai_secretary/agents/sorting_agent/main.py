@@ -43,7 +43,7 @@ async def main(
         agent_msgs = await agents_msgs_manager.get_tasks_by_status(TaskStatus.PENDING, 5)
         if agent_msgs:
             try:
-                service = AgentsMsgsService(agent_msgs, agents_msgs_manager, harness)
+                service = AgentsMsgsService(agent_msgs, agents_msgs_manager, harness, memory)
                 await service.run()
             except Exception as e:
                 logger.error(f"[Sorting Agent] Error while running service for agents messages: {e}")
@@ -52,7 +52,7 @@ async def main(
         pending_tasks = await incoming_tasks_manager.get_tasks_by_status(TaskStatus.PENDING, 5)
         if pending_tasks:
             try:
-                service = IncomingTasksService(pending_tasks, incoming_tasks_manager, harness, mail_conn)
+                service = IncomingTasksService(pending_tasks, incoming_tasks_manager, harness, memory, mail_conn)
                 await service.run()
             except Exception as e:
                 logger.error(f"[Sorting Agent] Error while running service for incoming tasks: {e}")

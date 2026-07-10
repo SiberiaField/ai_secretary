@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from task_managers import Task, TaskStatus, FileTaskManager, register_data_model
 from ai_agent.messages import Message, Role
 from ai_agent.harness import Harness
+from ai_agent.memory import ChatMemory
 
 logger = logging.getLogger(__name__)
 
@@ -21,9 +22,11 @@ class AgentsMsgsService():
             self,
             agents_msgs: List[Task], 
             agents_msgs_manager: FileTaskManager,
-            harness: Harness
+            harness: Harness,
+            memory: ChatMemory
         ):
         self.harness = harness
+        self.memory = memory
         self.agents_msgs_manager = agents_msgs_manager
         self.agents_msgs = agents_msgs
 
@@ -47,6 +50,8 @@ class AgentsMsgsService():
             except Exception as e:
                 await self.agents_msgs_manager.update_task(agent_msg.id, TaskStatus.FAILED, None)
                 logger.error(f"[Sorting Agent] Error occured during ai-agent running. Message ID: {agent_msg.id}. Error: {e}", exc_info=True)
+                self.memory.clear()
                 continue
                     
             await self.agents_msgs_manager.update_task(agent_msg.id, TaskStatus.COMPLETED, None)
+            self.memory.clear()

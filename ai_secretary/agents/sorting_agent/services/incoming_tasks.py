@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from task_managers import Task, TaskStatus, FileTaskManager, register_data_model
 from ai_agent.messages import Message, Role
 from ai_agent.harness import Harness
+from ai_agent.memory import ChatMemory
 from mail_agent import EmailMessage, EmailAddress
 from mail_connection_manager import MailConnectionManager
 import asyncio
@@ -69,9 +70,11 @@ class IncomingTasksService():
             tasks: List[Task],
             incoming_tasks_manager: FileTaskManager,
             harness: Harness,
+            memory: ChatMemory,
             mail_conn: MailConnectionManager,
         ):
         self.harness = harness
+        self.memory = memory
         self.incoming_tasks_manager = incoming_tasks_manager
         self.tasks = tasks
         self.mail_conn = mail_conn
@@ -100,13 +103,18 @@ class IncomingTasksService():
             except Exception as e:
                 await self.incoming_tasks_manager.update_task(task.id, TaskStatus.FAILED, None)
                 logger.error(f"[Sorting Agent] Error occured during ai-agent running. Task ID: {task.id}. Error: {e}", exc_info=True)
+                self.memory.clear()
                 continue
+                
 
             try:
                 await self._save_reply_draft(task_data, final_answer.message.content)
             except Exception as e:
                 await self.incoming_tasks_manager.update_task(task.id, TaskStatus.FAILED, None)
                 logger.error(f"[Sorting Agent] Error occured while saving draft. Task ID: {task.id}. Error: {e}", exc_info=True)
+                self.memory.clear()
                 continue
+                
 
             await self.incoming_tasks_manager.update_task(task.id, TaskStatus.COMPLETED, None)
+            self.memory.clear()
